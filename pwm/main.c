@@ -62,16 +62,12 @@ int main(void)
     pwm_set_enabled(slice_num_3, true);
 
     uint16_t cc = 500;
-    uint8_t cc_step = 100;
-
     uint16_t cc_max = 1000;
     uint16_t cc_min = 0;
+    uint8_t cc_step = 100;
 
     bool leds_on = false;
-
     bool button_pressed = false;
-    bool brightness_inc_button_pressed = false;
-    bool brightness_dec_button_pressed = false;
 
     uint32_t last_button_press_time = 0;
 
@@ -86,16 +82,16 @@ int main(void)
             if(button_pressed) {
                 if(time_us_32() - last_button_press_time > 100000) {
                     last_button_press_time = time_us_32();
-                    if(leds_on) {
-                        pwm_set_chan_level(slice_num_1, channel_num_1, cc_min);
-                        pwm_set_chan_level(slice_num_2, channel_num_2, cc_min);
-                        pwm_set_chan_level(slice_num_3, channel_num_3, cc_min);
-                        leds_on = false;
-                    } else {
+                    if(!leds_on) {
                         pwm_set_chan_level(slice_num_1, channel_num_1, cc);
                         pwm_set_chan_level(slice_num_2, channel_num_2, cc);
                         pwm_set_chan_level(slice_num_3, channel_num_3, cc);
                         leds_on = true;
+                    } else {
+                        pwm_set_chan_level(slice_num_1, channel_num_1, cc_min);
+                        pwm_set_chan_level(slice_num_2, channel_num_2, cc_min);
+                        pwm_set_chan_level(slice_num_3, channel_num_3, cc_min);
+                        leds_on = false;
                     }
                 }
             }
@@ -105,7 +101,12 @@ int main(void)
             if(time_us_32() - last_button_press_time > 100000) {
                 last_button_press_time = time_us_32();
                 cc += cc_step;
-                cc = cc > cc_max ? cc_max : cc;
+
+                if (cc > cc_max) {
+                    cc = cc_max;
+                }
+                
+                printf("Increased CC: %d\n", cc);
                 pwm_set_chan_level(slice_num_1, channel_num_1, cc);
                 pwm_set_chan_level(slice_num_2, channel_num_2, cc);
                 pwm_set_chan_level(slice_num_3, channel_num_3, cc);
@@ -115,8 +116,14 @@ int main(void)
         if(brightness_dec_button_state && leds_on) {
             if(time_us_32() - last_button_press_time > 100000) {
                 last_button_press_time = time_us_32();
-                cc -= cc_step;
-                cc = cc < cc_min ? cc_min : cc;
+
+                if(cc < cc_step) {
+                    cc = cc_min;
+                } else {
+                    cc -= cc_step;
+                }
+
+                printf("Decreased CC: %d\n", cc);
                 pwm_set_chan_level(slice_num_1, channel_num_1, cc);
                 pwm_set_chan_level(slice_num_2, channel_num_2, cc);
                 pwm_set_chan_level(slice_num_3, channel_num_3, cc);
