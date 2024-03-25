@@ -14,6 +14,8 @@
 #define PWM_FREQ 1000
 #define PWM_CLK_DIVIDER 1000
 
+#define DEBOUNCE_DELAY_US 100000
+
 int main(void)
 {
     stdio_init_all();
@@ -67,28 +69,29 @@ int main(void)
     uint8_t cc_step = 100;
 
     bool leds_on = false;
-    bool button_pressed = false;
 
-    uint32_t last_button_press_time = 0;
+    uint32_t last_toggle_button_state = gpio_get(BUTTON_TOGGLE);
+    uint32_t last_inc_button_state = gpio_get(BUTTON_BRIGHTNESS_INC);
+    uint32_t last_dec_button_state = gpio_get(BUTTON_BRIGHTNESS_DEC);
 
     while(true) {
         bool toggle_button_state = !gpio_get(BUTTON_TOGGLE);
-        bool brightness_inc_button_state = !gpio_get(BUTTON_BRIGHTNESS_INC);
-        bool brightness_dec_button_state = !gpio_get(BUTTON_BRIGHTNESS_DEC);
+        bool inc_button_state = !gpio_get(BUTTON_BRIGHTNESS_INC);
+        bool dec_button_state = !gpio_get(BUTTON_BRIGHTNESS_DEC);
 
-        if(toggle_button_state != button_pressed) {
-            button_pressed = toggle_button_state;
+        if(toggle_button_state != last_toggle_button_state) {
+            busy_wait_us_32(DEBOUNCE_DELAY_US);
+            if(toggle_button_state == !gpio_get(BUTTON_TOGGLE)) {
+                last_toggle_button_state = toggle_button_state;
 
-            if(button_pressed) {
-                if(time_us_32() - last_button_press_time > 100000) {
-                    last_button_press_time = time_us_32();
+                if(toggle_button_state) {
                     if(!leds_on) {
                         pwm_set_chan_level(slice_num_1, channel_num_1, cc);
                         pwm_set_chan_level(slice_num_2, channel_num_2, cc);
                         pwm_set_chan_level(slice_num_3, channel_num_3, cc);
                         leds_on = true;
                     } else {
-                        if (cc == cc_min) {
+                        if(cc == cc_min) {
                             cc = 500;
                             pwm_set_chan_level(slice_num_1, channel_num_1, cc);
                             pwm_set_chan_level(slice_num_2, channel_num_2, cc);
@@ -104,41 +107,49 @@ int main(void)
             }
         }
 
+        if(inc_button_state != last_inc_button_state) {
+            busy_wait_us_32(DEBOUNCE_DELAY_US);
+            if(inc_button_state == !gpio_get(BUTTON_BRIGHTNESS_INC)) {
+                last_inc_button_state = inc_button_state;
 
-        if(brightness_inc_button_state && leds_on) {
-            if(time_us_32() - last_button_press_time > 100000) {
-                last_button_press_time = time_us_32();
-                cc += cc_step;
-
-                if (cc > cc_max) {
-                    cc = cc_max;
+                if(inc_button_state) {
+                    while(!gpio_get(BUTTON_BRIGHTNESS_INC)) {
+                        cc += cc_step;
+                        if(cc > cc_max) {
+                            cc = cc_max;
+                            break;
+                        }
+                        printf("Increased CC: %d\n", cc);
+                        pwm_set_chan_level(slice_num_1, channel_num_1, cc);
+                        pwm_set_chan_level(slice_num_2, channel_num_2, cc);
+                        pwm_set_chan_level(slice_num_3, channel_num_3, cc);
+                        busy_wait_us_32(DEBOUNCE_DELAY_US);
+                    }
                 }
-
-                printf("Increased CC: %d\n", cc);
-                pwm_set_chan_level(slice_num_1, channel_num_1, cc);
-                pwm_set_chan_level(slice_num_2, channel_num_2, cc);
-                pwm_set_chan_level(slice_num_3, channel_num_3, cc);
             }
         }
 
-        if(brightness_dec_button_state && leds_on) {
-            if(time_us_32() - last_button_press_time > 100000) {
-                last_button_press_time = time_us_32();
+        if(dec_button_state != last_dec_button_state) {
+            busy_wait_us_32(DEBOUNCE_DELAY_US);
+            if(dec_button_state == !gpio_get(BUTTON_BRIGHTNESS_DEC)) {
+                last_dec_button_state = dec_button_state;
 
-                if(cc < cc_step) {
-                    cc = cc_min;
-                } else {
-                    cc -= cc_step;
+                if(dec_button_state) {
+                    while(!gpio_get(BUTTON_BRIGHTNESS_DEC)) {
+                        if(cc < cc_step) {
+                            cc = cc_min;
+                        } else {
+                            cc -= cc_step;
+                        }
+                        printf("Decreased CC: %d\n", cc);
+                        pwm_set_chan_level(slice_num_1, channel_num_1, cc);
+                        pwm_set_chan_level(slice_num_2, channel_num_2, cc);
+                        pwm_set_chan_level(slice_num_3, channel_num_3, cc);
+                        busy_wait_us_32(DEBOUNCE_DELAY_US);
+                    }
                 }
-
-                printf("Decreased CC: %d\n", cc);
-                pwm_set_chan_level(slice_num_1, channel_num_1, cc);
-                pwm_set_chan_level(slice_num_2, channel_num_2, cc);
-                pwm_set_chan_level(slice_num_3, channel_num_3, cc);
             }
         }
-
-        sleep_ms(10);
     }
 
     return 0;
