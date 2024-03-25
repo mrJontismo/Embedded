@@ -88,14 +88,24 @@ int main(void)
                         pwm_set_chan_level(slice_num_3, channel_num_3, cc);
                         leds_on = true;
                     } else {
-                        pwm_set_chan_level(slice_num_1, channel_num_1, cc_min);
-                        pwm_set_chan_level(slice_num_2, channel_num_2, cc_min);
-                        pwm_set_chan_level(slice_num_3, channel_num_3, cc_min);
-                        leds_on = false;
+                        // If LEDs are on and brightness is at minimum, set brightness to 500
+                        if (cc == cc_min) {
+                            cc = 500;
+                            pwm_set_chan_level(slice_num_1, channel_num_1, cc);
+                            pwm_set_chan_level(slice_num_2, channel_num_2, cc);
+                            pwm_set_chan_level(slice_num_3, channel_num_3, cc);
+                        } else {
+                            // If LEDs are on but brightness is not at minimum, turn off the LEDs
+                            pwm_set_chan_level(slice_num_1, channel_num_1, cc_min);
+                            pwm_set_chan_level(slice_num_2, channel_num_2, cc_min);
+                            pwm_set_chan_level(slice_num_3, channel_num_3, cc_min);
+                            leds_on = false;
+                        }
                     }
                 }
             }
         }
+
 
         if(brightness_inc_button_state && leds_on) {
             if(time_us_32() - last_button_press_time > 100000) {
@@ -105,7 +115,7 @@ int main(void)
                 if (cc > cc_max) {
                     cc = cc_max;
                 }
-                
+
                 printf("Increased CC: %d\n", cc);
                 pwm_set_chan_level(slice_num_1, channel_num_1, cc);
                 pwm_set_chan_level(slice_num_2, channel_num_2, cc);
