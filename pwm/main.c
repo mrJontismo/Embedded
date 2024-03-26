@@ -13,52 +13,27 @@
 
 #define DEBOUNCE_DELAY_US 100000
 
+void init_gpio();
+void init_pwm(uint slice_num_1, uint slice_num_2, uint slice_num_3);
+
 int main(void)
 {
     stdio_init_all();
 
     printf("Booting...\n");
 
-    gpio_init(BUTTON_TOGGLE);
-    gpio_set_dir(BUTTON_TOGGLE, GPIO_IN);
-    gpio_pull_up(BUTTON_TOGGLE);
-
-    gpio_init(BUTTON_BRIGHTNESS_INC);
-    gpio_set_dir(BUTTON_BRIGHTNESS_INC, GPIO_IN);
-    gpio_pull_up(BUTTON_BRIGHTNESS_INC);
-
-    gpio_init(BUTTON_BRIGHTNESS_DEC);
-    gpio_set_dir(BUTTON_BRIGHTNESS_DEC, GPIO_IN);
-    gpio_pull_up(BUTTON_BRIGHTNESS_DEC);
+    init_gpio();
 
     uint slice_num_1 = pwm_gpio_to_slice_num(LED_0);
-    uint channel_num_1 = pwm_gpio_to_channel(LED_0);
-
     uint slice_num_2 = pwm_gpio_to_slice_num(LED_1);
-    uint channel_num_2 = pwm_gpio_to_channel(LED_1);
-
     uint slice_num_3 = pwm_gpio_to_slice_num(LED_2);
+
+    init_pwm(slice_num_1, slice_num_2, slice_num_3);
+
+    uint channel_num_1 = pwm_gpio_to_channel(LED_0);
+    uint channel_num_2 = pwm_gpio_to_channel(LED_1);
     uint channel_num_3 = pwm_gpio_to_channel(LED_2);
 
-    pwm_set_enabled(slice_num_1, false);
-    pwm_set_enabled(slice_num_2, false);
-    pwm_set_enabled(slice_num_3, false);
-
-    pwm_config config = pwm_get_default_config();
-    pwm_config_set_clkdiv_int(&config, 125.0f);
-    pwm_config_set_wrap(&config, 125.0f);
-
-    pwm_init(slice_num_1, &config, false);
-    pwm_init(slice_num_2, &config, false);
-    pwm_init(slice_num_3, &config, false);
-
-    gpio_set_function(LED_0, GPIO_FUNC_PWM);
-    gpio_set_function(LED_1, GPIO_FUNC_PWM);
-    gpio_set_function(LED_2, GPIO_FUNC_PWM);
-
-    pwm_set_enabled(slice_num_1, true);
-    pwm_set_enabled(slice_num_2, true);
-    pwm_set_enabled(slice_num_3, true);
 
     uint16_t cc_max = 125;
     uint16_t cc = cc_max / 2;
@@ -67,9 +42,9 @@ int main(void)
 
     bool leds_on = false;
 
-    uint32_t last_toggle_button_state = gpio_get(BUTTON_TOGGLE);
-    uint32_t last_inc_button_state = gpio_get(BUTTON_BRIGHTNESS_INC);
-    uint32_t last_dec_button_state = gpio_get(BUTTON_BRIGHTNESS_DEC);
+    bool last_toggle_button_state = gpio_get(BUTTON_TOGGLE);
+    bool last_inc_button_state = gpio_get(BUTTON_BRIGHTNESS_INC);
+    bool last_dec_button_state = gpio_get(BUTTON_BRIGHTNESS_DEC);
 
     while(true) {
         bool toggle_button_state = !gpio_get(BUTTON_TOGGLE);
@@ -150,4 +125,42 @@ int main(void)
     }
 
     return 0;
+}
+
+void init_gpio()
+{
+    gpio_init(BUTTON_TOGGLE);
+    gpio_set_dir(BUTTON_TOGGLE, GPIO_IN);
+    gpio_pull_up(BUTTON_TOGGLE);
+
+    gpio_init(BUTTON_BRIGHTNESS_INC);
+    gpio_set_dir(BUTTON_BRIGHTNESS_INC, GPIO_IN);
+    gpio_pull_up(BUTTON_BRIGHTNESS_INC);
+
+    gpio_init(BUTTON_BRIGHTNESS_DEC);
+    gpio_set_dir(BUTTON_BRIGHTNESS_DEC, GPIO_IN);
+    gpio_pull_up(BUTTON_BRIGHTNESS_DEC);
+}
+
+void init_pwm(uint slice_num_1, uint slice_num_2, uint slice_num_3)
+{
+    pwm_set_enabled(slice_num_1, false);
+    pwm_set_enabled(slice_num_2, false);
+    pwm_set_enabled(slice_num_3, false);
+
+    pwm_config config = pwm_get_default_config();
+    pwm_config_set_clkdiv_int(&config, 125.0f);
+    pwm_config_set_wrap(&config, 125.0f);
+
+    pwm_init(slice_num_1, &config, false);
+    pwm_init(slice_num_2, &config, false);
+    pwm_init(slice_num_3, &config, false);
+
+    gpio_set_function(LED_0, GPIO_FUNC_PWM);
+    gpio_set_function(LED_1, GPIO_FUNC_PWM);
+    gpio_set_function(LED_2, GPIO_FUNC_PWM);
+
+    pwm_set_enabled(slice_num_1, true);
+    pwm_set_enabled(slice_num_2, true);
+    pwm_set_enabled(slice_num_3, true);
 }
