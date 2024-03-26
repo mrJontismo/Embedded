@@ -11,6 +11,9 @@
 #define LED_1 21
 #define LED_2 22
 
+#define PWM_FREQ 1000
+#define PWM_CLK_DIVIDER 1000
+
 #define DEBOUNCE_DELAY_US 100000
 
 int main(void)
@@ -45,8 +48,8 @@ int main(void)
     pwm_set_enabled(slice_num_3, false);
 
     pwm_config config = pwm_get_default_config();
-    pwm_config_set_clkdiv_int(&config, 125.0f);
-    pwm_config_set_wrap(&config, 125.0f);
+    pwm_config_set_clkdiv_int(&config, PWM_CLK_DIVIDER);
+    pwm_config_set_wrap(&config, PWM_FREQ);
 
     pwm_init(slice_num_1, &config, false);
     pwm_init(slice_num_2, &config, false);
@@ -60,10 +63,10 @@ int main(void)
     pwm_set_enabled(slice_num_2, true);
     pwm_set_enabled(slice_num_3, true);
 
-    uint16_t cc_max = 125;
-    uint16_t cc = cc_max / 2;
+    uint16_t cc = 500;
+    uint16_t cc_max = 1000;
     uint16_t cc_min = 0;
-    uint8_t cc_step = 10;
+    uint8_t cc_step = 100;
 
     bool leds_on = false;
 
@@ -89,7 +92,7 @@ int main(void)
                         leds_on = true;
                     } else {
                         if(cc == cc_min) {
-                            cc = cc_max / 2;
+                            cc = 500;
                             pwm_set_chan_level(slice_num_1, channel_num_1, cc);
                             pwm_set_chan_level(slice_num_2, channel_num_2, cc);
                             pwm_set_chan_level(slice_num_3, channel_num_3, cc);
@@ -104,7 +107,7 @@ int main(void)
             }
         }
 
-        if(inc_button_state != last_inc_button_state && leds_on) {
+        if(inc_button_state != last_inc_button_state) {
             busy_wait_us_32(DEBOUNCE_DELAY_US);
             if(inc_button_state == !gpio_get(BUTTON_BRIGHTNESS_INC)) {
                 last_inc_button_state = inc_button_state;
@@ -126,7 +129,7 @@ int main(void)
             }
         }
 
-        if(dec_button_state != last_dec_button_state && leds_on) {
+        if(dec_button_state != last_dec_button_state) {
             busy_wait_us_32(DEBOUNCE_DELAY_US);
             if(dec_button_state == !gpio_get(BUTTON_BRIGHTNESS_DEC)) {
                 last_dec_button_state = dec_button_state;
