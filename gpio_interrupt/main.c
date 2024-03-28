@@ -12,65 +12,13 @@
 #define ROT_B 11
 #define ROT_SW 12
 
-#define DEBOUNCE_DELAY_US 100000
+#define PWM_TOP (1000)
+
+#define DEBOUNCE_DELAY_MS 100
 
 volatile bool clockwise = false;
 volatile bool counterclockwise = false;
 bool leds_on = false;
-
-void init_gpio();
-void init_pwm();
-void toggle_leds(bool *leds_on, uint16_t *cc);
-void mutate_leds(uint16_t cc);
-void isr_rotate();
-
-int main(void)
-{
-    stdio_init_all();
-
-    printf("Booting...\n");
-
-    init_gpio();
-    init_pwm();
-
-    bool prev_rot_sw_state = gpio_get(ROT_SW);
-
-    uint16_t cc = 500;
-    uint16_t cc_max = 1000;
-    uint8_t cc_step = 50;
-
-    gpio_set_irq_enabled_with_callback(ROT_A, GPIO_IRQ_EDGE_FALL | GPIO_IRQ_EDGE_RISE, true, &isr_rotate);
-    gpio_set_irq_enabled_with_callback(ROT_B, GPIO_IRQ_EDGE_FALL | GPIO_IRQ_EDGE_RISE, true, &isr_rotate);
-
-    while(true) {
-        bool rot_sw_state = !gpio_get(ROT_SW);
-
-        if(rot_sw_state != prev_rot_sw_state) {
-            busy_wait_us_32(DEBOUNCE_DELAY_US);
-            prev_rot_sw_state = rot_sw_state;
-            if(rot_sw_state) {
-                toggle_leds(&leds_on, &cc);
-            }
-        }
-        if(clockwise) {
-            cc += cc_step;
-            if(cc > cc_max) {
-                cc = cc_max;
-            }
-            mutate_leds(cc);
-            clockwise = false;
-        } else if(counterclockwise) {
-            if(cc < cc_step) {
-                cc = 0;
-            } else {
-                cc -= cc_step;
-            }
-            mutate_leds(cc);
-            counterclockwise = false;
-        }
-    }
-    return 0;
-}
 
 void init_gpio()
 {
@@ -97,7 +45,7 @@ void init_pwm()
 
     pwm_config config = pwm_get_default_config();
     pwm_config_set_clkdiv_int(&config, 125);
-    pwm_config_set_wrap(&config, 1000);
+    pwm_config_set_wrap(&config, PWM_TOP - 1);
 
     pwm_init(slice_num_1, &config, false);
     pwm_init(slice_num_2, &config, false);
@@ -158,15 +106,15 @@ void mutate_leds(uint16_t cc)
 
 void isr_rotate()
 {
-    static uint8_t prev_state_a = 0;
-    static uint8_t prev_state_b = 0;
+    static bool prev_state_a = false;
+    static bool prev_state_b = false;
 
-    uint8_t state_a = gpio_get(ROT_B);
-    uint8_t state_b = gpio_get(ROT_A);
+    bool state_a = gpio_get(ROT_B);
+    bool state_b = gpio_get(ROT_A);
 
     if(leds_on) {
-        if (state_a != prev_state_a) {
-            if (state_a == state_b) {
+        if(state_a != prev_state_a) {
+            if(state_a == state_b) {
                 clockwise = true;
             } else {
                 counterclockwise = true;
@@ -176,4 +124,53 @@ void isr_rotate()
 
     prev_state_a = state_a;
     prev_state_b = state_b;
+}
+
+int main(void)
+{
+    stdio_init_all();
+
+    printf("Booting...\n");
+
+    init_gpio();
+    init_pwm();
+
+    bool prev_rot_sw_state = gpio_get(ROT_SW);
+
+    uint16_t cc = 500;
+    uint16_t cc_max = 1000;
+    uint8_t cc_step = 50;
+
+    gpio_set_irq_enabled_with_callback(ROT_A, GPIO_IRQ_EDGE_FALL | GPIO_IRQ_EDGE_RISE, true, &isr_rotate);
+    gpio_set_irq_enabled_with_callback(ROT_B, GPIO_IRQ_EDGE_FALL | GPIO_IRQ_EDGE_RISE, true, &isr_rotate);
+
+    while(true) {
+        sleep_ms(50);
+        bool rot_sw_state = !gpio_get(ROT_SW);
+
+        if(rot_sw_state != prev_rot_sw_state) {
+            busy_wait_ms(DEBOUNCE_DELAY_MS);
+            prev_rot_sw_state = rot_sw_state;
+            if(rot_sw_state) {
+                toggle_leds(&leds_on, &cc);
+            }
+        }
+        if(clockwise) {
+            cc += cc_step;
+            if(cc > cc_max) {
+                cc = cc_max;
+            }
+            mutate_leds(cc);
+            clockwise = false;
+        } else if(counterclockwise) {
+            if(cc < cc_step) {
+                cc = 0;
+            } else {
+                cc -= cc_step;
+            }
+            mutate_leds(cc);
+            counterclockwise = false;
+        }
+    }
+    return 0;
 }
