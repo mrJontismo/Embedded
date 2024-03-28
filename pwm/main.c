@@ -12,6 +12,7 @@
 #define LED_2 22
 
 #define PWM_TOP (1000)
+#define CC_STEP 50
 #define DEBOUNCE_DELAY_MS 100
 
 void init_gpio()
@@ -80,8 +81,7 @@ int main(void)
     init_gpio();
     init_pwm();
 
-    uint16_t cc = 500;
-    uint8_t cc_step = 100;
+    uint16_t cc = PWM_TOP / 2;
 
     bool leds_on = false;
 
@@ -104,7 +104,7 @@ int main(void)
                     leds_on = true;
                 } else {
                     if(cc == 0) {
-                        cc = 500;
+                        cc = PWM_TOP / 2;
                         led_brightness_change(cc);
                     } else {
                         led_brightness_change(0);
@@ -120,7 +120,7 @@ int main(void)
 
             if(inc_button_state) {
                 while(!gpio_get(BUTTON_BRIGHTNESS_INC)) {
-                    cc += cc_step;
+                    cc += CC_STEP;
                     if(cc > PWM_TOP) {
                         cc = PWM_TOP;
                         break;
@@ -137,10 +137,10 @@ int main(void)
 
             if(dec_button_state) {
                 while(!gpio_get(BUTTON_BRIGHTNESS_DEC)) {
-                    if(cc < cc_step) {
+                    if(cc < CC_STEP) {
                         cc = 0;
                     } else {
-                        cc -= cc_step;
+                        cc -= CC_STEP;
                     }
                     led_brightness_change(cc);
                     busy_wait_ms(DEBOUNCE_DELAY_MS);

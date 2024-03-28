@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include "pico/stdlib.h"
+#include "pico/util/queue.h"
 #include "hardware/gpio.h"
 #include "hardware/pwm.h"
 #include "hardware/irq.h"
@@ -13,11 +14,15 @@
 #define ROT_SW 12
 
 #define PWM_TOP (1000)
-
+#define CC_STEP 50
 #define DEBOUNCE_DELAY_MS 100
+
+static queue_t events_clockwise;
+static queue_t events_counterclockwise;
 
 volatile bool clockwise = false;
 volatile bool counterclockwise = false;
+
 bool leds_on = false;
 
 void init_gpio()
@@ -60,36 +65,7 @@ void init_pwm()
     pwm_set_enabled(slice_num_3, true);
 }
 
-void toggle_leds(bool *leds_on, uint16_t *cc) {
-    uint slice_num_1 = pwm_gpio_to_slice_num(LED_0);
-    uint slice_num_2 = pwm_gpio_to_slice_num(LED_1);
-    uint slice_num_3 = pwm_gpio_to_slice_num(LED_2);
-
-    uint channel_num_1 = pwm_gpio_to_channel(LED_0);
-    uint channel_num_2 = pwm_gpio_to_channel(LED_1);
-    uint channel_num_3 = pwm_gpio_to_channel(LED_2);
-
-    if(!(*leds_on)) {
-        pwm_set_chan_level(slice_num_1, channel_num_1, *cc);
-        pwm_set_chan_level(slice_num_2, channel_num_2, *cc);
-        pwm_set_chan_level(slice_num_3, channel_num_3, *cc);
-        *leds_on = true;
-    } else {
-        if(*cc == 0) {
-            *cc = 500;
-            pwm_set_chan_level(slice_num_1, channel_num_1, *cc);
-            pwm_set_chan_level(slice_num_2, channel_num_2, *cc);
-            pwm_set_chan_level(slice_num_3, channel_num_3, *cc);
-        } else {
-            pwm_set_chan_level(slice_num_1, channel_num_1, 0);
-            pwm_set_chan_level(slice_num_2, channel_num_2, 0);
-            pwm_set_chan_level(slice_num_3, channel_num_3, 0);
-            *leds_on = false;
-        }
-    }
-}
-
-void mutate_leds(uint16_t cc)
+void led_brightness_control(uint16_t cc)
 {
     uint slice_num_1 = pwm_gpio_to_slice_num(LED_0);
     uint slice_num_2 = pwm_gpio_to_slice_num(LED_1);
@@ -104,7 +80,22 @@ void mutate_leds(uint16_t cc)
     pwm_set_chan_level(slice_num_3, channel_num_3, cc);
 }
 
-void isr_rotate()
+void toggle_leds(bool *leds_on, uint16_t *cc) {
+    if(!(*leds_on)) {
+        led_brightness_control(*cc);
+        *leds_on = true;
+    } else {
+        if(*cc == 0) {
+            *cc = 500;
+            led_brightness_control(*cc);
+        } else {
+            led_brightness_control(0);
+            *leds_on = false;
+        }
+    }
+}
+
+void gpio_handler()
 {
     static bool prev_state_a = false;
     static bool prev_state_b = false;
@@ -116,7 +107,9 @@ void isr_rotate()
         if(state_a != prev_state_a) {
             if(state_a == state_b) {
                 clockwise = true;
+                queue_try_add(&events_clockwise, &clockwise);
             } else {
+                queue_try_add(&events_counterclockwise, &counterclockwise);
                 counterclockwise = true;
             }
         }
@@ -135,17 +128,17 @@ int main(void)
     init_gpio();
     init_pwm();
 
+    queue_init(&events_clockwise, sizeof(bool), 10);
+    queue_init(&events_counterclockwise, sizeof(bool), 10);
+
+    uint16_t cc = PWM_TOP / 2;
+
+    gpio_set_irq_enabled_with_callback(ROT_A, GPIO_IRQ_EDGE_FALL | GPIO_IRQ_EDGE_RISE, true, &gpio_handler);
+    gpio_set_irq_enabled_with_callback(ROT_B, GPIO_IRQ_EDGE_FALL | GPIO_IRQ_EDGE_RISE, true, &gpio_handler);
+
     bool prev_rot_sw_state = gpio_get(ROT_SW);
 
-    uint16_t cc = 500;
-    uint16_t cc_max = 1000;
-    uint8_t cc_step = 50;
-
-    gpio_set_irq_enabled_with_callback(ROT_A, GPIO_IRQ_EDGE_FALL | GPIO_IRQ_EDGE_RISE, true, &isr_rotate);
-    gpio_set_irq_enabled_with_callback(ROT_B, GPIO_IRQ_EDGE_FALL | GPIO_IRQ_EDGE_RISE, true, &isr_rotate);
-
     while(true) {
-        sleep_ms(50);
         bool rot_sw_state = !gpio_get(ROT_SW);
 
         if(rot_sw_state != prev_rot_sw_state) {
@@ -155,22 +148,27 @@ int main(void)
                 toggle_leds(&leds_on, &cc);
             }
         }
-        if(clockwise) {
-            cc += cc_step;
-            if(cc > cc_max) {
-                cc = cc_max;
+
+        while(queue_try_remove(&events_clockwise, &clockwise)) {
+            cc += CC_STEP;
+            if(cc > PWM_TOP) {
+                cc = PWM_TOP;
             }
-            mutate_leds(cc);
-            clockwise = false;
-        } else if(counterclockwise) {
-            if(cc < cc_step) {
+            led_brightness_control(cc);
+        }
+
+        while(queue_try_remove(&events_counterclockwise, &counterclockwise)) {
+            if(cc < CC_STEP) {
                 cc = 0;
             } else {
-                cc -= cc_step;
+                cc -= CC_STEP;
             }
-            mutate_leds(cc);
-            counterclockwise = false;
+            led_brightness_control(cc);
         }
     }
+
+    queue_free(&events_clockwise);
+    queue_free(&events_counterclockwise);
+
     return 0;
 }
