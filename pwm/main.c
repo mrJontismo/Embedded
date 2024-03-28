@@ -51,7 +51,6 @@ int main(void)
 
         if(toggle_button_state != last_toggle_button_state) {
             busy_wait_us_32(DEBOUNCE_DELAY_US);
-            if(toggle_button_state == !gpio_get(BUTTON_TOGGLE)) {
                 last_toggle_button_state = toggle_button_state;
 
                 if(toggle_button_state) {
@@ -74,13 +73,11 @@ int main(void)
                         }
                     }
                 }
-            }
         }
 
         if(inc_button_state != last_inc_button_state && leds_on) {
             busy_wait_us_32(DEBOUNCE_DELAY_US);
-            if(inc_button_state == !gpio_get(BUTTON_BRIGHTNESS_INC)) {
-                last_inc_button_state = inc_button_state;
+            last_inc_button_state = inc_button_state;
 
                 if(inc_button_state) {
                     while(!gpio_get(BUTTON_BRIGHTNESS_INC)) {
@@ -96,12 +93,10 @@ int main(void)
                         busy_wait_us_32(DEBOUNCE_DELAY_US);
                     }
                 }
-            }
         }
 
         if(dec_button_state != last_dec_button_state && leds_on) {
             busy_wait_us_32(DEBOUNCE_DELAY_US);
-            if(dec_button_state == !gpio_get(BUTTON_BRIGHTNESS_DEC)) {
                 last_dec_button_state = dec_button_state;
 
                 if(dec_button_state) {
@@ -119,7 +114,6 @@ int main(void)
                     }
                 }
             }
-        }
     }
 
     return 0;
