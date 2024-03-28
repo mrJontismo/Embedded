@@ -34,11 +34,9 @@ int main(void)
     uint channel_num_2 = pwm_gpio_to_channel(LED_1);
     uint channel_num_3 = pwm_gpio_to_channel(LED_2);
 
-
-    uint16_t cc_max = 125;
-    uint16_t cc = cc_max / 2;
-    uint16_t cc_min = 0;
-    uint8_t cc_step = 10;
+    uint16_t cc_max = 1000;
+    uint16_t cc = 500;
+    uint8_t cc_step = 100;
 
     bool leds_on = false;
 
@@ -63,15 +61,15 @@ int main(void)
                         pwm_set_chan_level(slice_num_3, channel_num_3, cc);
                         leds_on = true;
                     } else {
-                        if(cc == cc_min) {
-                            cc = cc_max / 2;
+                        if(cc == 0) {
+                            cc = 500;
                             pwm_set_chan_level(slice_num_1, channel_num_1, cc);
                             pwm_set_chan_level(slice_num_2, channel_num_2, cc);
                             pwm_set_chan_level(slice_num_3, channel_num_3, cc);
                         } else {
-                            pwm_set_chan_level(slice_num_1, channel_num_1, cc_min);
-                            pwm_set_chan_level(slice_num_2, channel_num_2, cc_min);
-                            pwm_set_chan_level(slice_num_3, channel_num_3, cc_min);
+                            pwm_set_chan_level(slice_num_1, channel_num_1, 0);
+                            pwm_set_chan_level(slice_num_2, channel_num_2, 0);
+                            pwm_set_chan_level(slice_num_3, channel_num_3, 0);
                             leds_on = false;
                         }
                     }
@@ -109,7 +107,7 @@ int main(void)
                 if(dec_button_state) {
                     while(!gpio_get(BUTTON_BRIGHTNESS_DEC)) {
                         if(cc < cc_step) {
-                            cc = cc_min;
+                            cc = 0;
                         } else {
                             cc -= cc_step;
                         }
@@ -149,8 +147,8 @@ void init_pwm(uint slice_num_1, uint slice_num_2, uint slice_num_3)
     pwm_set_enabled(slice_num_3, false);
 
     pwm_config config = pwm_get_default_config();
-    pwm_config_set_clkdiv_int(&config, 125.0f);
-    pwm_config_set_wrap(&config, 125.0f);
+    pwm_config_set_clkdiv_int(&config, 125);
+    pwm_config_set_wrap(&config, 1000);
 
     pwm_init(slice_num_1, &config, false);
     pwm_init(slice_num_2, &config, false);
