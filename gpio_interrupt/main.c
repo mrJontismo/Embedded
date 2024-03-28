@@ -14,8 +14,8 @@
 
 #define DEBOUNCE_DELAY_US 100000
 
-bool clockwise = false;
-bool counterclockwise = false;
+volatile bool clockwise = false;
+volatile bool counterclockwise = false;
 bool leds_on = false;
 
 void init_gpio();
