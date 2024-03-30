@@ -14,6 +14,7 @@
 #define UART_RX_PIN 5
 
 #define STR_LEN (80)
+#define LORA_ID_LEN (16)
 #define UART_TIMEOUT_US 500000
 
 typedef enum LoRaState {
@@ -69,8 +70,8 @@ bool lora_test_uart_connection(uart_inst_t *uart)
 {
     const char *send = "AT\r\n";
 
-    uart_write_blocking(UART_ID, (uint8_t *) send, strlen(send));
-    char *received_string = uart_read_string_with_timeout(UART_ID, "OK", 5);
+    uart_write_blocking(uart, (uint8_t *) send, strlen(send));
+    char *received_string = uart_read_string_with_timeout(uart, "OK", 5);
     if(received_string != NULL) {
         printf("Connected to LoRa module.\n");;
         free(received_string);
@@ -84,8 +85,8 @@ bool lora_get_fw_version(uart_inst_t *uart)
 {
     const char *send = "AT+VER\r\n";
 
-    uart_write_blocking(UART_ID, (uint8_t *) send, strlen(send));
-    char *received_string = uart_read_string_with_timeout(UART_ID, "VER", 2);
+    uart_write_blocking(uart, (uint8_t *) send, strlen(send));
+    char *received_string = uart_read_string_with_timeout(uart, "VER", 2);
     if(received_string != NULL) {
         printf("%s\n", received_string);
         free(received_string);
@@ -113,10 +114,10 @@ void lora_fmt_deveui(char *input, char *output)
 bool lora_get_deveui(uart_inst_t *uart)
 {
     const char *send = "AT+ID=DevEui\r\n";
-    char lora_deveui[17];
+    char lora_deveui[LORA_ID_LEN + 1];
 
-    uart_write_blocking(UART_ID, (uint8_t *) send, strlen(send));
-    char *received_string = uart_read_string_with_timeout(UART_ID, "ID", 2);
+    uart_write_blocking(uart, (uint8_t *) send, strlen(send));
+    char *received_string = uart_read_string_with_timeout(uart, "ID", 2);
     if(received_string != NULL) {
         lora_fmt_deveui(received_string, lora_deveui);
         printf("%s\n", lora_deveui);
