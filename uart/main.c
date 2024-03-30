@@ -101,8 +101,8 @@ void lora_fmt_deveui(char *input, char *output)
     char *start = strstr(input, ", ");
     if(start != NULL) {
         start += 2;
-        int j = 0;
-        for(int i = 0; start[i] != '\0'; i++) {
+        uint8_t j = 0;
+        for(uint8_t i = 0; start[i] != '\0'; i++) {
             if(isxdigit(start[i])) {
                 output[j++] = tolower(start[i]);
             }
