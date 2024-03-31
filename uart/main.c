@@ -25,7 +25,8 @@ typedef enum LoRaState {
     STATE_ERROR
 } LoRaState;
 
-char *uart_read_string_with_timeout(uart_inst_t *uart, const char *desired_output, uint8_t max_attempts) {
+char *uart_read_string_with_timeout(uart_inst_t *uart, const char *desired_output, uint8_t max_attempts)
+{
     uint32_t t = 0;
     uint8_t pos = 0;
     uint8_t attempt = 0;
