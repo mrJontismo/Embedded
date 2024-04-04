@@ -129,7 +129,8 @@ bool lora_get_deveui(uart_inst_t *uart)
     }
 }
 
-int main(void) {
+int main(void)
+{
     stdio_init_all();
     printf("Booting...\n");
 

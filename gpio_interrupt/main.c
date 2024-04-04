@@ -14,7 +14,7 @@
 #define ROT_SW 12
 
 #define PWM_TOP (1000)
-#define CC_STEP 50
+#define CC_STEP 25
 #define DEBOUNCE_DELAY_MS 100
 
 static queue_t events_clockwise;
@@ -25,7 +25,7 @@ volatile bool counterclockwise = false;
 
 bool leds_on = false;
 
-void init_gpio()
+void init_gpio(void)
 {
     gpio_init(ROT_SW);
     gpio_set_dir(ROT_SW, GPIO_IN);
@@ -38,7 +38,7 @@ void init_gpio()
     gpio_set_dir(ROT_B, GPIO_IN);
 }
 
-void init_pwm()
+void init_pwm(void)
 {
     uint slice_num_1 = pwm_gpio_to_slice_num(LED_0);
     uint slice_num_2 = pwm_gpio_to_slice_num(LED_1);
@@ -95,7 +95,7 @@ void toggle_leds(bool *leds_on, uint16_t *cc) {
     }
 }
 
-void gpio_handler()
+void gpio_handler(void)
 {
     static bool prev_state_a = false;
     static bool prev_state_b = false;
@@ -136,7 +136,7 @@ int main(void)
     gpio_set_irq_enabled_with_callback(ROT_A, GPIO_IRQ_EDGE_FALL | GPIO_IRQ_EDGE_RISE, true, &gpio_handler);
     gpio_set_irq_enabled_with_callback(ROT_B, GPIO_IRQ_EDGE_FALL | GPIO_IRQ_EDGE_RISE, true, &gpio_handler);
 
-    bool prev_rot_sw_state = gpio_get(ROT_SW);
+    bool prev_rot_sw_state = !gpio_get(ROT_SW);
 
     while(true) {
         bool rot_sw_state = !gpio_get(ROT_SW);
