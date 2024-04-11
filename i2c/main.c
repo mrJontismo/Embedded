@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
 #include "pico/stdlib.h"
 #include "hardware/i2c.h"
 
@@ -29,7 +30,7 @@ typedef struct LED_State {
     uint8_t not_state;
 } LED_State;
 
-void set_led_state(LED_State *state, uint8_t value)
+void led_set_state(LED_State *state, uint8_t value)
 {
     state->state = value;
     state->not_state = ~value;
@@ -71,7 +72,7 @@ void eeprom_write_byte(uint16_t address, uint8_t byte)
 
     uint8_t frame[] = { first, second, byte };
     i2c_write_blocking(I2C_ID, DEV_ADDR, frame, 3, false);
-    sleep_ms(10);
+    sleep_ms(5);
 }
 
 uint8_t eeprom_read_byte(uint16_t address)
@@ -97,7 +98,7 @@ void eeprom_write_multi_byte(uint16_t address, uint8_t *data, size_t len)
     frame[1] = second;
     memcpy(&frame[2], data, len);
     i2c_write_blocking(I2C_ID, DEV_ADDR, frame, len + 2, false);
-    sleep_ms(10);
+    sleep_ms(5);
 }
 
 void eeprom_read_multi_byte(uint16_t address, uint8_t *buffer, size_t len)
@@ -130,7 +131,7 @@ void eeprom_store_led_state(LED_State *leds)
     }
 }
 
-bool eeprom_leds_initialized(void)
+bool eeprom_leds_are_initialized(void)
 {
     uint16_t first_address = HIGHEST_ADDR - sizeof(LED_State) * 3 + 1;
 
@@ -154,8 +155,59 @@ void eeprom_check_contents(void)
     printf("End of EEPROM.\n");
 }
 
+void led_read_state(LED_State *leds)
+{
+    LED_State eeprom_leds[3];
+
+    eeprom_read_multi_byte(HIGHEST_ADDR - sizeof(LED_State) * 3 + 1, (uint8_t *)eeprom_leds, sizeof(LED_State) * 3);
+
+    for(uint8_t i = 0; i < 3; i++) {
+        if(led_state_is_valid(&eeprom_leds[i])) {
+            led_set_state(&leds[i], eeprom_leds[i].state);
+        }
+    }
+}
+
+void led_apply_state(LED_State *leds)
+{
+    for(uint8_t i = 0; i < 3; i++) {
+        if(led_state_is_valid(&leds[i])) {
+            if(leds[i].state == LED_ON) {
+                gpio_put(leds[i].pin, 1);
+            } else {
+                gpio_put(leds[i].pin, 0);
+            }
+        }
+    }
+}
+
+void led_state_print(LED_State *leds)
+{
+    printf("LED_0 status: %02X\n", leds[0].state);
+    printf("LED_1 status: %02X\n", leds[1].state);
+    printf("LED_2 status: %02X\n", leds[2].state);
+    printf("------------------\n");
+}
+
+void led_turn_on(LED_State *leds, uint8_t index)
+{
+    bool led_current_state = leds[index].state;
+
+    if(led_current_state == LED_ON) {
+        led_set_state(&leds[index], LED_OFF);
+        eeprom_store_led_state(leds);
+        led_apply_state(leds);
+    } else {
+        led_set_state(&leds[index], LED_ON);
+        eeprom_store_led_state(leds);
+        led_apply_state(leds);
+    }
+    led_state_print(leds);
+}
+
 int main(void)
 {
+    uint64_t time = time_us_64();
     stdio_init_all();
     printf("Booting...\n");
 
@@ -167,13 +219,45 @@ int main(void)
 
     LED_State leds[3] = {
             {LED_0, LED_OFF, ~LED_OFF},
-            {LED_1, LED_OFF, ~LED_OFF},
+            {LED_1, LED_ON, ~LED_ON},
             {LED_2, LED_OFF, ~LED_OFF},
     };
 
-    eeprom_check_contents();
+    if(!eeprom_leds_are_initialized()) {
+        eeprom_store_led_state(leds);
+        led_apply_state(leds);
+    } else {
+        led_read_state(leds);
+        led_apply_state(leds);
+    }
+
+    printf("Program started at %d seconds.\n", (time - time_us_64()) / 1000000);
+
+    while(true) {
+        if(!gpio_get(SW_0)) {
+            while(!gpio_get(SW_0)) {
+                sleep_ms(50);
+            }
+            led_turn_on(leds, 0);
+        }
+
+        if(!gpio_get(SW_1)) {
+            while(!gpio_get(SW_1)) {
+                sleep_ms(50);
+            }
+            led_turn_on(leds, 1);
+        }
+
+        if(!gpio_get(SW_2)) {
+            while(!gpio_get(SW_2)) {
+                sleep_ms(50);
+            }
+            led_turn_on(leds, 2);
+        }
+    }
     return 0;
 }
+
 /*uint16_t eeprom_find_highest_free_address(void)
 {
     for(uint16_t address = HIGHEST_ADDR; address > 0; address--) {
