@@ -122,7 +122,7 @@ void eeprom_clear(void)
     }
 }
 
-void eeprom_store_led_state(LED_State *leds)
+void eeprom_store_led_state_from_struct(LED_State *leds)
 {
     uint16_t highest_address = HIGHEST_ADDR - sizeof(LED_State) * 3 + 1;
 
@@ -155,7 +155,7 @@ void eeprom_check_contents(void)
     printf("End of EEPROM.\n");
 }
 
-void led_read_state(LED_State *leds)
+void led_read_state_to_struct(LED_State *leds)
 {
     LED_State eeprom_leds[3];
 
@@ -183,9 +183,9 @@ void led_apply_state(LED_State *leds)
 
 void led_state_print(LED_State *leds)
 {
-    printf("LED_0 status: %02X\n", leds[0].state);
-    printf("LED_1 status: %02X\n", leds[1].state);
-    printf("LED_2 status: %02X\n", leds[2].state);
+    for(uint8_t i = 0; i < 3; i++) {
+        printf("LED_%d status: %d\n", i, leds[i].state);
+    }
     printf("------------------\n");
 }
 
@@ -195,11 +195,11 @@ void led_turn_on(LED_State *leds, uint8_t index)
 
     if(led_current_state == LED_ON) {
         led_set_state(&leds[index], LED_OFF);
-        eeprom_store_led_state(leds);
+        eeprom_store_led_state_from_struct(leds);
         led_apply_state(leds);
     } else {
         led_set_state(&leds[index], LED_ON);
-        eeprom_store_led_state(leds);
+        eeprom_store_led_state_from_struct(leds);
         led_apply_state(leds);
     }
     led_state_print(leds);
@@ -208,6 +208,7 @@ void led_turn_on(LED_State *leds, uint8_t index)
 int main(void)
 {
     uint64_t time = time_us_64();
+    
     stdio_init_all();
     printf("Booting...\n");
 
@@ -224,10 +225,10 @@ int main(void)
     };
 
     if(!eeprom_leds_are_initialized()) {
-        eeprom_store_led_state(leds);
+        eeprom_store_led_state_from_struct(leds);
         led_apply_state(leds);
     } else {
-        led_read_state(leds);
+        led_read_state_to_struct(leds);
         led_apply_state(leds);
     }
 
