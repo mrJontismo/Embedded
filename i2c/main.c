@@ -3,10 +3,13 @@
 #include <stdlib.h>
 #include "pico/stdlib.h"
 #include "hardware/i2c.h"
+#include "hardware/uart.h"
 
 #define I2C1_SDA_PIN 14
 #define I2C1_SCL_PIN 15
 #define I2C_ID i2c1
+
+#define UART_ID uart0
 
 #define DEV_ADDR 0x50
 #define HIGHEST_ADDR (0x7FFF)
@@ -182,11 +185,6 @@ void led_apply_state(LED_State *leds)
     }
 }
 
-void led_state_print(LED_State *leds, uint8_t index)
-{
-    printf("LED_%d status: %s. State changed at: %llu seconds.\n", index, leds[index].state == LED_ON ? "on" : "off", time_us_64() / 1000000);
-}
-
 void led_turn_on(LED_State *leds, uint8_t index)
 {
     bool led_current_state = leds[index].state;
@@ -225,11 +223,13 @@ uint16_t crc16(const uint8_t *data_p, size_t length) {
 
 void eeprom_clear_str_space(void)
 {
+    printf("Clearing EEPROM log entries.\n");
     for(uint16_t address = 0; address < HIGHEST_STR_ADDR + 1; address += PAGE_SIZE) {
         uint8_t buffer[PAGE_SIZE];
         memset(buffer, MAGIC_BYTE, PAGE_SIZE);
         eeprom_write_multi_byte(address, buffer, PAGE_SIZE);
     }
+    printf("EEPROM clear.\n");
 }
 
 void eeprom_write_string(char *data)
@@ -250,13 +250,21 @@ void eeprom_write_string(char *data)
 
     uint16_t address = eeprom_find_lowest_free_str_address();
     if(address + 64 >= HIGHEST_STR_ADDR) {
-        printf("Too many log entries. Clearing EEPROM.\n");
+        printf("Too many log entries.\n");
         eeprom_clear_str_space();
 
         address = eeprom_find_lowest_free_str_address();
     }
 
     eeprom_write_multi_byte(address, buf, len + 3);
+}
+
+void led_state_print_and_store(LED_State *leds, uint8_t index)
+{
+    char log_message[64];
+    sprintf(log_message, "LED_%d status: %s. State changed at: %llu seconds.\n", index, leds[index].state == LED_ON ? "on" : "off", time_us_64() / 1000000);
+    printf("%s", log_message);
+    eeprom_write_string(log_message);
 }
 
 void eeprom_read_string(void)
@@ -277,6 +285,7 @@ void eeprom_read_string(void)
                 printf("%s\n", buf);
             } else {
                 printf("String %s has invalid CRC checksum.\n", buf);
+                return;
             }
         }
     }
@@ -297,8 +306,8 @@ int main(void)
     gpio_set_function(I2C1_SCL_PIN, GPIO_FUNC_I2C);
 
     eeprom_write_string(boot_msg);
-    
-    /*LED_State leds[3] = {
+
+    LED_State leds[3] = {
             {LED_0, LED_OFF, ~LED_OFF},
             {LED_1, LED_ON, ~LED_ON},
             {LED_2, LED_OFF, ~LED_OFF},
@@ -314,13 +323,34 @@ int main(void)
 
     printf("Program started at %llu seconds.\n", time_us_64() / 1000000);
 
+    char buf[20];
+    uint8_t index = 0;
+
     while(true) {
+        while(uart_is_readable(UART_ID)) {
+            char input_char = uart_getc(UART_ID);
+            if (input_char == '\r') {
+                buf[index] = '\0';
+                if(strcmp(buf, "read") == 0) {
+                    eeprom_read_string();
+                } else if(strcmp(buf, "erase") == 0) {
+                    eeprom_clear_str_space();
+                }
+                index = 0;
+            } else {
+                buf[index] = input_char;
+                index++;
+            }
+            sleep_ms(100);
+        }
+
+
         if(!gpio_get(SW_0)) {
             while(!gpio_get(SW_0)) {
                 sleep_ms(50);
             }
             led_turn_on(leds, 0);
-            led_state_print(leds, 0);
+            led_state_print_and_store(leds, 0);
         }
 
         if(!gpio_get(SW_1)) {
@@ -328,7 +358,7 @@ int main(void)
                 sleep_ms(50);
             }
             led_turn_on(leds, 1);
-            led_state_print(leds, 1);
+            led_state_print_and_store(leds, 1);
         }
 
         if(!gpio_get(SW_2)) {
@@ -336,9 +366,9 @@ int main(void)
                 sleep_ms(50);
             }
             led_turn_on(leds, 2);
-            led_state_print(leds, 2);
+            led_state_print_and_store(leds, 2);
         }
-    }*/
+    }
 
     return 0;
 }
