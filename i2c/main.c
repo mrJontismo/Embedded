@@ -10,6 +10,7 @@
 
 #define DEV_ADDR 0x50
 #define HIGHEST_ADDR (0x7FFF)
+#define HIGHEST_STR_ADDR (0x800)
 #define PAGE_SIZE 64
 
 #define MAGIC_BYTE 0xA5
@@ -181,12 +182,9 @@ void led_apply_state(LED_State *leds)
     }
 }
 
-void led_state_print(LED_State *leds)
+void led_state_print(LED_State *leds, uint8_t index)
 {
-    for(uint8_t i = 0; i < 3; i++) {
-        printf("LED_%d status: %d\n", i, leds[i].state);
-    }
-    printf("------------------\n");
+    printf("LED_%d status: %s. State changed at: %llu seconds.\n", index, leds[index].state == LED_ON ? "on" : "off", time_us_64() / 1000000);
 }
 
 void led_turn_on(LED_State *leds, uint8_t index)
@@ -202,15 +200,95 @@ void led_turn_on(LED_State *leds, uint8_t index)
         eeprom_store_led_state_from_struct(leds);
         led_apply_state(leds);
     }
-    led_state_print(leds);
+}
+
+uint16_t eeprom_find_lowest_free_str_address(void) {
+    for(uint16_t address = 0; address < HIGHEST_STR_ADDR; address += 64) {
+        if(eeprom_read_byte(address) == MAGIC_BYTE) {
+            return address;
+        }
+    }
+    printf("ERROR: EEPROM is full.\n");
+    return HIGHEST_STR_ADDR;
+}
+
+uint16_t crc16(const uint8_t *data_p, size_t length) {
+    uint8_t x;
+    uint16_t crc = 0xFFFF;
+    while(length--) {
+        x = crc >> 8 ^ *data_p++;
+        x ^= x >> 4;
+        crc = (crc << 8) ^ ((uint16_t) (x << 12)) ^ ((uint16_t) (x << 5)) ^ ((uint16_t) x);
+    }
+    return crc;
+}
+
+void eeprom_clear_str_space(void)
+{
+    for(uint16_t address = 0; address < HIGHEST_STR_ADDR + 1; address += PAGE_SIZE) {
+        uint8_t buffer[PAGE_SIZE];
+        memset(buffer, MAGIC_BYTE, PAGE_SIZE);
+        eeprom_write_multi_byte(address, buffer, PAGE_SIZE);
+    }
+}
+
+void eeprom_write_string(char *data)
+{
+    size_t len = strlen(data);
+    if(len > 61) {
+        printf("Log entry is too long.\n");
+        return;
+    }
+
+    uint8_t buf[64];
+    uint16_t crc = crc16((uint8_t *)data, len);
+
+    memcpy(buf, data, len + 1);
+    buf[len] = '\0';
+    buf[len + 1] = (crc >> 8) & 0xFF;
+    buf[len + 2] = crc & 0xFF;
+
+    uint16_t address = eeprom_find_lowest_free_str_address();
+    if(address + 64 >= HIGHEST_STR_ADDR) {
+        printf("Too many log entries. Clearing EEPROM.\n");
+        eeprom_clear_str_space();
+
+        address = eeprom_find_lowest_free_str_address();
+    }
+
+    eeprom_write_multi_byte(address, buf, len + 3);
+}
+
+void eeprom_read_string(void)
+{
+    printf("-----READING LOG-----\n");
+
+    for(uint16_t address = 0; address < HIGHEST_STR_ADDR; address += 64) {
+        if(eeprom_read_byte(address) != MAGIC_BYTE) {
+            uint8_t buf[64];
+            eeprom_read_multi_byte(address, buf, 64);
+
+            size_t len = strlen(buf);
+
+            uint16_t crc = crc16(buf, len);
+            uint16_t crc_read = (buf[len + 1] << 8) | buf[len + 2];
+
+            if(crc == crc_read) {
+                printf("%s\n", buf);
+            } else {
+                printf("String %s has invalid CRC checksum.\n", buf);
+            }
+        }
+    }
+    printf("-----REACHED END OF LOG-----\n");
 }
 
 int main(void)
 {
-    uint64_t time = time_us_64();
-    
     stdio_init_all();
-    printf("Booting...\n");
+
+    const char *boot_msg = "Booting...";
+    printf("%s\n", boot_msg);
 
     init_gpio();
 
@@ -218,7 +296,9 @@ int main(void)
     gpio_set_function(I2C1_SDA_PIN, GPIO_FUNC_I2C);
     gpio_set_function(I2C1_SCL_PIN, GPIO_FUNC_I2C);
 
-    LED_State leds[3] = {
+    eeprom_write_string(boot_msg);
+    
+    /*LED_State leds[3] = {
             {LED_0, LED_OFF, ~LED_OFF},
             {LED_1, LED_ON, ~LED_ON},
             {LED_2, LED_OFF, ~LED_OFF},
@@ -232,7 +312,7 @@ int main(void)
         led_apply_state(leds);
     }
 
-    printf("Program started at %d seconds.\n", (time - time_us_64()) / 1000000);
+    printf("Program started at %llu seconds.\n", time_us_64() / 1000000);
 
     while(true) {
         if(!gpio_get(SW_0)) {
@@ -240,6 +320,7 @@ int main(void)
                 sleep_ms(50);
             }
             led_turn_on(leds, 0);
+            led_state_print(leds, 0);
         }
 
         if(!gpio_get(SW_1)) {
@@ -247,6 +328,7 @@ int main(void)
                 sleep_ms(50);
             }
             led_turn_on(leds, 1);
+            led_state_print(leds, 1);
         }
 
         if(!gpio_get(SW_2)) {
@@ -254,29 +336,9 @@ int main(void)
                 sleep_ms(50);
             }
             led_turn_on(leds, 2);
+            led_state_print(leds, 2);
         }
-    }
+    }*/
+
     return 0;
 }
-
-/*uint16_t eeprom_find_highest_free_address(void)
-{
-    for(uint16_t address = HIGHEST_ADDR; address > 0; address--) {
-        if(eeprom_read_byte(address) == MAGIC_BYTE) {
-            return address;
-        }
-    }
-    printf("ERROR: EEPROM is full.\n");
-    return 0;
-}
-
-uint16_t eeprom_find_lowest_free_address(void)
-{
-    for(uint16_t address = 0; address < HIGHEST_ADDR; address++) {
-        if(eeprom_read_byte(address) == MAGIC_BYTE) {
-            return address;
-        }
-    }
-    printf("ERROR: EEPROM is full.\n");
-    return 0;
-}*/

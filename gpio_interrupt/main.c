@@ -149,7 +149,7 @@ int main(void)
             }
         }
 
-        while(queue_try_remove(&events_clockwise, &clockwise)) {
+        while(queue_try_remove(&events_clockwise, &clockwise) && leds_on) {
             cc += CC_STEP;
             if(cc > PWM_TOP) {
                 cc = PWM_TOP;
@@ -157,7 +157,7 @@ int main(void)
             led_brightness_control(cc);
         }
 
-        while(queue_try_remove(&events_counterclockwise, &counterclockwise)) {
+        while(queue_try_remove(&events_counterclockwise, &counterclockwise) && leds_on) {
             if(cc < CC_STEP) {
                 cc = 0;
             } else {
