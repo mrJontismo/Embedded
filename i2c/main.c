@@ -245,8 +245,8 @@ void eeprom_write_string(char *data)
 
     memcpy(buf, data, len + 1);
     buf[len] = '\0';
-    buf[len + 1] = (crc >> 8) & 0xFF;
-    buf[len + 2] = crc & 0xFF;
+    buf[len + 1] = (crc >> 8);
+    buf[len + 2] = crc;
 
     uint16_t address = eeprom_find_lowest_free_str_address();
     if(address + 64 >= HIGHEST_STR_ADDR) {
@@ -279,12 +279,14 @@ void eeprom_read_string(void)
             size_t len = strlen(buf);
 
             uint16_t crc = crc16(buf, len);
-            uint16_t crc_read = (buf[len + 1] << 8) | buf[len + 2];
+            buf[len] = (uint8_t) (crc >> 8);
+            buf[len + 1] = (uint8_t) crc;
 
-            if(crc == crc_read) {
+            if(crc16(buf, len + 2) == 0) {
+                buf[len] = '\0';
                 printf("%s\n", buf);
             } else {
-                printf("String %s has invalid CRC checksum.\n", buf);
+                printf("Invalid CRC checksum.\n");
                 return;
             }
         }
@@ -327,6 +329,7 @@ int main(void)
     uint8_t index = 0;
 
     while(true) {
+
         while(uart_is_readable(UART_ID)) {
             char input_char = uart_getc(UART_ID);
             if (input_char == '\r') {
@@ -343,7 +346,6 @@ int main(void)
             }
             sleep_ms(100);
         }
-
 
         if(!gpio_get(SW_0)) {
             while(!gpio_get(SW_0)) {
