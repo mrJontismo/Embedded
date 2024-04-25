@@ -284,7 +284,7 @@ void eeprom_read_string(void)
 
             if(crc16(buf, len + 2) == 0) {
                 buf[len] = '\0';
-                printf("%s\n", buf);
+                printf("%s", buf);
             } else {
                 printf("Invalid CRC checksum.\n");
                 return;
@@ -298,8 +298,8 @@ int main(void)
 {
     stdio_init_all();
 
-    const char *boot_msg = "Booting...";
-    printf("%s\n", boot_msg);
+    const char *boot_msg = "Booting...\n";
+    printf("%s", boot_msg);
 
     init_gpio();
 
